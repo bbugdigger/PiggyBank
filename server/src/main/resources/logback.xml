@@ -1,12 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{YYYY-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
-    <root level="trace">
+    
+    <!-- Set log levels -->
+    <root level="INFO">
         <appender-ref ref="STDOUT"/>
     </root>
-    <logger name="org.eclipse.jetty" level="INFO"/>
+    
+    <!-- Application logs -->
+    <logger name="com.bugdigger.piggybank" level="DEBUG"/>
+    
+    <!-- Ktor logs -->
+    <logger name="io.ktor" level="INFO"/>
+    
+    <!-- Exposed SQL logs (set to DEBUG to see SQL queries) -->
+    <logger name="Exposed" level="INFO"/>
+    
+    <!-- HikariCP connection pool -->
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+    
+    <!-- Netty -->
     <logger name="io.netty" level="INFO"/>
+    
+    <!-- Jetty -->
+    <logger name="org.eclipse.jetty" level="INFO"/>
 </configuration>

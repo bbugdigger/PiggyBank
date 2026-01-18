@@ -49,11 +49,13 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
             implementation(compose.ui)
             implementation(compose.components.resources)
-            implementation(compose.preview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.coroutinesCore)
             implementation(projects.shared)
         }
         commonTest.dependencies {
@@ -62,6 +64,8 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            // Explicit JVM dependency needed for desktop runtime classpath
+            implementation(libs.kotlinx.datetime)
         }
     }
 }
@@ -95,6 +99,15 @@ android {
 
 dependencies {
     debugImplementation(compose.uiTooling)
+}
+
+// Force kotlinx-datetime to 0.6.2 to avoid runtime ClassNotFoundException
+// Material3 1.9.0 pulls in 0.7.1 which has breaking API changes (removed Clock.System)
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
+        force("org.jetbrains.kotlinx:kotlinx-datetime-jvm:0.6.2")
+    }
 }
 
 compose.desktop {
