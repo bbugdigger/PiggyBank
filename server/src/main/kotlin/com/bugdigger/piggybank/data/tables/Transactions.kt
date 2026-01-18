@@ -14,8 +14,11 @@ import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 object Transactions : UUIDTable("transactions") {
     val userId = reference("user_id", Users)
     val date = date("date")
+    val num = varchar("num", 50).nullable() // Check number, invoice number, reference
     val description = varchar("description", 500)
     val notes = text("notes").nullable()
+    val voided = bool("voided").default(false)
+    val voidReason = varchar("void_reason", 255).nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     

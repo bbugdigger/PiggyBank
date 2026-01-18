@@ -24,6 +24,7 @@ object ApiEndpoints {
     const val ACCOUNTS_TREE = "/api/accounts/tree"
     
     const val TRANSACTIONS = "/api/transactions"
+    const val SPLITS = "/api/splits"
     
     const val EXCHANGE_RATES = "/api/exchange-rates"
     

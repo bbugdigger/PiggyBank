@@ -223,4 +223,30 @@ class PiggyBankApi(
             }
         }
     }
+    
+    suspend fun voidTransaction(id: String, reason: String? = null): ApiResult<TransactionResponse> {
+        return safeApiCall {
+            post(baseUrl + "${ApiEndpoints.TRANSACTIONS}/$id/void") {
+                addAuth()
+                setBody(VoidTransactionRequest(reason))
+            }
+        }
+    }
+    
+    suspend fun unvoidTransaction(id: String): ApiResult<TransactionResponse> {
+        return safeApiCall {
+            post(baseUrl + "${ApiEndpoints.TRANSACTIONS}/$id/unvoid") {
+                addAuth()
+            }
+        }
+    }
+    
+    suspend fun updateReconcileStatus(splitId: String, status: String): ApiResult<SplitResponse> {
+        return safeApiCall {
+            patch(baseUrl + "${ApiEndpoints.SPLITS}/$splitId/reconcile") {
+                addAuth()
+                setBody(UpdateReconcileStatusRequest(status))
+            }
+        }
+    }
 }

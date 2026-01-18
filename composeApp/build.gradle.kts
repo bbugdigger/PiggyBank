@@ -57,6 +57,11 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.coroutinesCore)
             implementation(projects.shared)
+            
+            // Koin for dependency injection
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
+            implementation(libs.koin.composeViewModel)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -4,6 +4,18 @@ import org.jetbrains.exposed.dao.id.UUIDTable
 import org.jetbrains.exposed.sql.kotlin.datetime.timestamp
 
 /**
+ * Reconciliation status for splits:
+ * - NEW: Not yet reviewed (n)
+ * - CLEARED: Confirmed in statement but not reconciled (c)
+ * - RECONCILED: Fully reconciled with bank statement (y)
+ */
+enum class ReconcileStatus {
+    NEW,      // n - not reconciled
+    CLEARED,  // c - cleared but not reconciled
+    RECONCILED // y - fully reconciled
+}
+
+/**
  * Splits table - individual debit/credit entries within a transaction
  * 
  * In double-entry accounting:
@@ -26,6 +38,7 @@ object Splits : UUIDTable("splits") {
     val amount = decimal("amount", 19, 4) // Supports up to 999 trillion with 4 decimal places
     val currency = enumerationByName<Currency>("currency", 10)
     val memo = varchar("memo", 255).nullable()
+    val reconcileStatus = enumerationByName<ReconcileStatus>("reconcile_status", 15).default(ReconcileStatus.NEW)
     val createdAt = timestamp("created_at")
     
     init {

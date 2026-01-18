@@ -26,6 +26,7 @@ data class AccountResponse(
     val name: String,
     val fullName: String,
     val type: String,
+    val normalBalance: String, // DEBIT or CREDIT
     val currency: String,
     val description: String?,
     val placeholder: Boolean,

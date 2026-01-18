@@ -2,6 +2,8 @@ package com.bugdigger.piggybank.api.routes
 
 import com.bugdigger.piggybank.api.dto.CreateTransactionRequest
 import com.bugdigger.piggybank.api.dto.UpdateTransactionRequest
+import com.bugdigger.piggybank.api.dto.VoidTransactionRequest
+import com.bugdigger.piggybank.api.dto.UpdateReconcileStatusRequest
 import com.bugdigger.piggybank.plugins.getUserId
 import com.bugdigger.piggybank.plugins.UnauthorizedException
 import com.bugdigger.piggybank.service.TransactionService
@@ -80,6 +82,43 @@ fun Route.transactionRoutes(transactionService: TransactionService) {
                 val transactionId = call.parameters["id"]!!
                 transactionService.deleteTransaction(userId, transactionId)
                 call.respond(HttpStatusCode.NoContent)
+            }
+            
+            /**
+             * POST /api/transactions/{id}/void
+             * Void a transaction (mark as voided without deleting)
+             */
+            post("/{id}/void") {
+                val userId = call.getUserId() ?: throw UnauthorizedException()
+                val transactionId = call.parameters["id"]!!
+                val request = call.receive<VoidTransactionRequest>()
+                val transaction = transactionService.voidTransaction(userId, transactionId, request.reason)
+                call.respond(HttpStatusCode.OK, transaction)
+            }
+            
+            /**
+             * POST /api/transactions/{id}/unvoid
+             * Unvoid a transaction (restore a voided transaction)
+             */
+            post("/{id}/unvoid") {
+                val userId = call.getUserId() ?: throw UnauthorizedException()
+                val transactionId = call.parameters["id"]!!
+                val transaction = transactionService.unvoidTransaction(userId, transactionId)
+                call.respond(HttpStatusCode.OK, transaction)
+            }
+        }
+        
+        /**
+         * PATCH /api/splits/{id}/reconcile
+         * Update reconcile status of a split
+         */
+        route("/api/splits/{id}/reconcile") {
+            patch {
+                val userId = call.getUserId() ?: throw UnauthorizedException()
+                val splitId = call.parameters["id"]!!
+                val request = call.receive<UpdateReconcileStatusRequest>()
+                val split = transactionService.updateReconcileStatus(userId, splitId, request.status)
+                call.respond(HttpStatusCode.OK, split)
             }
         }
         

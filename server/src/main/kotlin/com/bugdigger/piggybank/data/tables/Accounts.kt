@@ -20,6 +20,23 @@ enum class AccountType {
 }
 
 /**
+ * Normal balance type for accounts:
+ * - DEBIT: Assets and Expenses increase with debits
+ * - CREDIT: Liabilities, Equity, and Income increase with credits
+ */
+enum class NormalBalance {
+    DEBIT,
+    CREDIT;
+    
+    companion object {
+        fun fromAccountType(type: AccountType): NormalBalance = when (type) {
+            AccountType.ASSET, AccountType.EXPENSE -> DEBIT
+            AccountType.LIABILITY, AccountType.EQUITY, AccountType.INCOME -> CREDIT
+        }
+    }
+}
+
+/**
  * Supported currencies
  */
 enum class Currency {
@@ -42,6 +59,7 @@ object Accounts : UUIDTable("accounts") {
     val name = varchar("name", 100)
     val fullName = varchar("full_name", 500) // e.g., "Assets:Bank:Checking"
     val type = enumerationByName<AccountType>("type", 20)
+    val normalBalance = enumerationByName<NormalBalance>("normal_balance", 10).default(NormalBalance.DEBIT)
     val currency = enumerationByName<Currency>("currency", 10)
     val description = text("description").nullable()
     val placeholder = bool("placeholder").default(false)

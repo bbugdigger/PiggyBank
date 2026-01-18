@@ -3,6 +3,7 @@ package com.bugdigger.piggybank.service
 import com.bugdigger.piggybank.api.dto.*
 import com.bugdigger.piggybank.data.tables.Accounts
 import com.bugdigger.piggybank.data.tables.Currency
+import com.bugdigger.piggybank.data.tables.ReconcileStatus
 import com.bugdigger.piggybank.data.tables.Splits
 import com.bugdigger.piggybank.data.tables.Transactions
 import com.bugdigger.piggybank.plugins.BadRequestException
@@ -54,8 +55,11 @@ class TransactionService {
                 it[Transactions.id] = transactionId
                 it[Transactions.userId] = userUuid
                 it[Transactions.date] = date
+                it[num] = request.num
                 it[description] = request.description
                 it[notes] = request.notes
+                it[voided] = false
+                it[voidReason] = null
                 it[createdAt] = now
                 it[updatedAt] = now
             }
@@ -65,6 +69,9 @@ class TransactionService {
                 val accountUuid = UUID.fromString(splitRequest.accountId)
                 val amount = BigDecimal(splitRequest.amount)
                 val currency = Currency.valueOf(splitRequest.currency.uppercase())
+                val reconcileStatus = splitRequest.reconcileStatus?.let { 
+                    ReconcileStatus.valueOf(it.uppercase()) 
+                } ?: ReconcileStatus.NEW
                 
                 Splits.insert {
                     it[Splits.id] = UUID.randomUUID()
@@ -73,6 +80,7 @@ class TransactionService {
                     it[Splits.amount] = amount
                     it[Splits.currency] = currency
                     it[memo] = splitRequest.memo
+                    it[Splits.reconcileStatus] = reconcileStatus
                     it[createdAt] = now
                 }
             }
@@ -164,6 +172,7 @@ class TransactionService {
             // Update transaction fields
             Transactions.update({ Transactions.id eq txnUuid }) {
                 if (request.date != null) it[date] = LocalDate.parse(request.date)
+                if (request.num != null) it[num] = request.num
                 if (request.description != null) it[description] = request.description
                 if (request.notes != null) it[notes] = request.notes
                 it[updatedAt] = now
@@ -196,6 +205,9 @@ class TransactionService {
                     val accountUuid = UUID.fromString(splitRequest.accountId)
                     val amount = BigDecimal(splitRequest.amount)
                     val currency = Currency.valueOf(splitRequest.currency.uppercase())
+                    val reconcileStatus = splitRequest.reconcileStatus?.let { 
+                        ReconcileStatus.valueOf(it.uppercase()) 
+                    } ?: ReconcileStatus.NEW
                     
                     Splits.insert {
                         it[Splits.id] = UUID.randomUUID()
@@ -204,6 +216,7 @@ class TransactionService {
                         it[Splits.amount] = amount
                         it[Splits.currency] = currency
                         it[memo] = splitRequest.memo
+                        it[Splits.reconcileStatus] = reconcileStatus
                         it[createdAt] = now
                     }
                 }
@@ -232,6 +245,114 @@ class TransactionService {
             
             // Delete transaction
             Transactions.deleteWhere { Transactions.id eq txnUuid }
+        }
+    }
+    
+    /**
+     * Void a transaction (mark as voided without deleting)
+     */
+    fun voidTransaction(userId: String, transactionId: String, reason: String?): TransactionResponse {
+        return transaction {
+            val userUuid = UUID.fromString(userId)
+            val txnUuid = UUID.fromString(transactionId)
+            val now = Clock.System.now()
+            
+            // Verify transaction exists and belongs to user
+            val txn = Transactions.selectAll()
+                .where { (Transactions.id eq txnUuid) and (Transactions.userId eq userUuid) }
+                .singleOrNull()
+                ?: throw NotFoundException("Transaction not found")
+            
+            // Check if already voided
+            if (txn[Transactions.voided]) {
+                throw BadRequestException("Transaction is already voided")
+            }
+            
+            // Void the transaction
+            Transactions.update({ Transactions.id eq txnUuid }) {
+                it[voided] = true
+                it[voidReason] = reason
+                it[updatedAt] = now
+            }
+            
+            getTransactionById(txnUuid)
+        }
+    }
+    
+    /**
+     * Unvoid a transaction (restore a voided transaction)
+     */
+    fun unvoidTransaction(userId: String, transactionId: String): TransactionResponse {
+        return transaction {
+            val userUuid = UUID.fromString(userId)
+            val txnUuid = UUID.fromString(transactionId)
+            val now = Clock.System.now()
+            
+            // Verify transaction exists and belongs to user
+            val txn = Transactions.selectAll()
+                .where { (Transactions.id eq txnUuid) and (Transactions.userId eq userUuid) }
+                .singleOrNull()
+                ?: throw NotFoundException("Transaction not found")
+            
+            // Check if not voided
+            if (!txn[Transactions.voided]) {
+                throw BadRequestException("Transaction is not voided")
+            }
+            
+            // Unvoid the transaction
+            Transactions.update({ Transactions.id eq txnUuid }) {
+                it[voided] = false
+                it[voidReason] = null
+                it[updatedAt] = now
+            }
+            
+            getTransactionById(txnUuid)
+        }
+    }
+    
+    /**
+     * Update reconcile status of a split
+     */
+    fun updateReconcileStatus(userId: String, splitId: String, status: String): SplitResponse {
+        return transaction {
+            val userUuid = UUID.fromString(userId)
+            val splitUuid = UUID.fromString(splitId)
+            val now = Clock.System.now()
+            
+            // Parse and validate status
+            val reconcileStatus = try {
+                ReconcileStatus.valueOf(status.uppercase())
+            } catch (e: IllegalArgumentException) {
+                throw BadRequestException("Invalid reconcile status: $status. Must be one of: NEW, CLEARED, RECONCILED")
+            }
+            
+            // Verify split exists and belongs to user's transaction
+            val split = (Splits innerJoin Transactions innerJoin Accounts)
+                .selectAll()
+                .where { (Splits.id eq splitUuid) and (Transactions.userId eq userUuid) }
+                .singleOrNull()
+                ?: throw NotFoundException("Split not found")
+            
+            // Update reconcile status
+            Splits.update({ Splits.id eq splitUuid }) {
+                it[Splits.reconcileStatus] = reconcileStatus
+            }
+            
+            // Also update transaction's updatedAt
+            Transactions.update({ Transactions.id eq split[Splits.transactionId] }) {
+                it[updatedAt] = now
+            }
+            
+            // Return updated split
+            SplitResponse(
+                id = split[Splits.id].toString(),
+                accountId = split[Splits.accountId].toString(),
+                accountName = split[Accounts.fullName],
+                amount = split[Splits.amount].toPlainString(),
+                currency = split[Splits.currency].name,
+                memo = split[Splits.memo],
+                reconcileStatus = reconcileStatus.name
+            )
         }
     }
     
@@ -273,34 +394,50 @@ class TransactionService {
                 .orderBy(Transactions.date to SortOrder.ASC, Transactions.createdAt to SortOrder.ASC)
                 .toList()
             
-            // Calculate running balance
+            // Calculate running balance (excluding voided transactions)
             var runningBalance = BigDecimal.ZERO
             val entries = splits.map { row ->
                 val amount = row[Splits.amount]
-                runningBalance += amount
+                val isVoided = row[Transactions.voided]
+                
+                // Only add to running balance if not voided
+                if (!isVoided) {
+                    runningBalance += amount
+                }
                 
                 // Get other accounts in this transaction
-                val otherAccounts = (Splits innerJoin Accounts)
+                val otherSplits = (Splits innerJoin Accounts)
                     .selectAll()
                     .where { 
                         (Splits.transactionId eq row[Transactions.id]) and 
                         (Splits.accountId neq accountUuid)
                     }
-                    .map { it[Accounts.fullName] }
+                    .toList()
+                
+                val otherAccounts = otherSplits.map { it[Accounts.fullName] }
+                val isSplit = otherSplits.size > 1 // More than one other account = split transaction
                 
                 AccountRegisterEntry(
                     transactionId = row[Transactions.id].toString(),
+                    splitId = row[Splits.id].toString(),
                     date = row[Transactions.date].toString(),
+                    num = row[Transactions.num],
                     description = row[Transactions.description],
+                    memo = row[Splits.memo],
                     amount = amount.toPlainString(),
                     balance = runningBalance.toPlainString(),
-                    otherAccounts = otherAccounts
+                    reconcileStatus = row[Splits.reconcileStatus].name,
+                    voided = isVoided,
+                    otherAccounts = otherAccounts,
+                    isSplit = isSplit
                 )
             }
             
             AccountRegisterResponse(
                 accountId = accountUuid.toString(),
                 accountName = account[Accounts.fullName],
+                accountType = account[Accounts.type].name,
+                normalBalance = account[Accounts.normalBalance].name,
                 entries = entries,
                 openingBalance = "0", // TODO: Support opening balance
                 closingBalance = runningBalance.toPlainString()
@@ -325,15 +462,19 @@ class TransactionService {
                     accountName = row[Accounts.fullName],
                     amount = row[Splits.amount].toPlainString(),
                     currency = row[Splits.currency].name,
-                    memo = row[Splits.memo]
+                    memo = row[Splits.memo],
+                    reconcileStatus = row[Splits.reconcileStatus].name
                 )
             }
         
         return TransactionResponse(
             id = txn[Transactions.id].toString(),
             date = txn[Transactions.date].toString(),
+            num = txn[Transactions.num],
             description = txn[Transactions.description],
             notes = txn[Transactions.notes],
+            voided = txn[Transactions.voided],
+            voidReason = txn[Transactions.voidReason],
             splits = splits,
             createdAt = txn[Transactions.createdAt].toString(),
             updatedAt = txn[Transactions.updatedAt].toString()

@@ -4,6 +4,7 @@ import com.bugdigger.piggybank.api.dto.*
 import com.bugdigger.piggybank.data.tables.AccountType
 import com.bugdigger.piggybank.data.tables.Accounts
 import com.bugdigger.piggybank.data.tables.Currency
+import com.bugdigger.piggybank.data.tables.NormalBalance
 import com.bugdigger.piggybank.data.tables.Splits
 import com.bugdigger.piggybank.plugins.BadRequestException
 import com.bugdigger.piggybank.plugins.ConflictException
@@ -64,6 +65,8 @@ class AccountService {
             val now = Clock.System.now()
             val accountId = UUID.randomUUID()
             
+            val normalBal = NormalBalance.fromAccountType(accountType)
+            
             Accounts.insert {
                 it[Accounts.id] = accountId
                 it[Accounts.userId] = userUuid
@@ -71,6 +74,7 @@ class AccountService {
                 it[name] = request.name
                 it[Accounts.fullName] = fullName
                 it[type] = accountType
+                it[normalBalance] = normalBal
                 it[Accounts.currency] = currency
                 it[description] = request.description
                 it[placeholder] = request.placeholder
@@ -84,6 +88,7 @@ class AccountService {
                 name = request.name,
                 fullName = fullName,
                 type = accountType.name,
+                normalBalance = normalBal.name,
                 currency = currency.name,
                 description = request.description,
                 placeholder = request.placeholder,
@@ -334,6 +339,7 @@ class AccountService {
                     it[name] = default.name
                     it[Accounts.fullName] = fullName
                     it[type] = default.type
+                    it[normalBalance] = NormalBalance.fromAccountType(default.type)
                     it[currency] = default.currency
                     it[description] = default.description
                     it[placeholder] = default.placeholder
@@ -414,6 +420,7 @@ class AccountService {
             name = this[Accounts.name],
             fullName = this[Accounts.fullName],
             type = this[Accounts.type].name,
+            normalBalance = this[Accounts.normalBalance].name,
             currency = this[Accounts.currency].name,
             description = this[Accounts.description],
             placeholder = this[Accounts.placeholder],
